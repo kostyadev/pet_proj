@@ -140,8 +140,11 @@ int main()
 		end = std::chrono::steady_clock::now();
 		std::chrono::duration<double> delTime = end - start;
 
-		std::cout << "Plain Obj,  create and init: " << createAndInitTime.count() << "s, sorting:" << sortingTime.count() 
-			<< "s, read: " << readTime.count() << "s, del time: " << delTime.count() << "s, avg mark: " << avgMark << ", avg letters: " << avgLetters << std::endl;
+		std::cout << ">>>Plain Obj" << std::endl;
+		std::cout << "bytes per obj: " << sizeof(StudentInfo) << std::endl;
+		std::cout << "create+init: " << createAndInitTime.count() << "s, sort:" << sortingTime.count() 
+			<< "s, read: " << readTime.count() << "s, destroy: " << delTime.count() << "s, "
+			<< "avg mark: " << avgMark << ", avg let-s: " << avgLetters << std::endl;
 	}
 
 	{
@@ -216,8 +219,11 @@ int main()
 		end = std::chrono::steady_clock::now();
 		std::chrono::duration<double> delTime = end - start;
 
-		std::cout << "Raw Ptr,    create and init: " << createAndInitTime.count() << "s, sorting:" << sortingTime.count()
-			<< "s, read: " << readTime.count() << "s, del time: " << delTime.count() << "s, avg mark: " << avgMark << ", avg letters: " << avgLetters << std::endl;
+		std::cout << ">>>Raw Ptr" << std::endl;
+		std::cout << "bytes per obj: " << sizeof(StudentInfo) + sizeof(StudentInfoRP) << std::endl;
+		std::cout << "create+init: " << createAndInitTime.count() << "s, sort:" << sortingTime.count()
+			<< "s, read: " << readTime.count() << "s, destroy: " << delTime.count() << "s, "
+			<< "avg mark: " << avgMark << ", avg let-s: " << avgLetters << std::endl;
 	}
 
 	{
@@ -290,7 +296,10 @@ int main()
 		end = std::chrono::steady_clock::now();
 		std::chrono::duration<double> delTime = end - start;
 
-		std::cout << "Shared Ptr, create and init: " << createAndInitTime.count() << "s, sorting:" << sortingTime.count()
-			<< "s, read: " << readTime.count() << "s, del time: " << delTime.count() << "s, avg mark: " << avgMark << ", avg letters: " << avgLetters << std::endl;
+		std::cout << ">>>Shared Ptr" << std::endl;
+		std::cout << "bytes per obj: " << sizeof(StudentInfo) + sizeof(StudentInfoRP) + sizeof(std::shared_ptr<StudentInfoRP>) << std::endl;
+		std::cout << "create+init: " << createAndInitTime.count() << "s, sort:" << sortingTime.count()
+			<< "s, read: " << readTime.count() << "s, destroy: " << delTime.count() << "s, "
+			<< "avg mark: " << avgMark << ", avg let-s: " << avgLetters << std::endl;
 	}
 }
