@@ -166,7 +166,7 @@
     <ClCompile Include="OpenCL-matrix-mult-cached.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\great-opencl-examples-master\cached_matrix_multiplication\cached_matrix_multiplication.cl" />
+    <None Include="cached_matrix_multiplication.cl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
