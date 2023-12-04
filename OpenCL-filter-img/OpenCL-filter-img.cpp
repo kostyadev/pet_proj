@@ -3,6 +3,8 @@
 #include <CL/cl.hpp>
 #include <iostream>
 #include <fstream>
+#include <chrono>
+#include <sstream>
 #include "BMP.h"
 
 cl::Program program;  // The program that will run on the device.    
@@ -30,6 +32,8 @@ float hpMask[hpMaskSize][hpMaskSize] =
     {-1,-1,-1,-1,-1},
     {-1,-1,-1,-1,-1},
 };
+
+const int SubSize = 16;
 
 // Return a device found in this OpenCL platform.
 cl::Device getDefaultDevice() {
@@ -73,8 +77,9 @@ void initializeDevice()
     // Compile kernel program which will run on the device.
     cl::Program::Sources sources(1, std::make_pair(src.c_str(), src.length() + 1));
     program = cl::Program(context, sources);
-
-    auto err = program.build();
+    std::stringstream ss;
+    ss << "-D SUB_SIZE=" << SubSize; // defines for kernel function
+    auto err = program.build(ss.str().c_str());
     if (err != CL_BUILD_SUCCESS)
     {
         std::cerr << "Error!\nBuild Status: " << program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(device)
@@ -83,7 +88,7 @@ void initializeDevice()
     }
 }
 
-void gpuProcess(const BMP& bmpIn, BMP& bmpOut)
+void FilterImageGPU(const BMP& bmpIn, BMP& bmpOut)
 {
     const auto imgWidth = bmpIn.bmp_info_header.width;
     const auto imgHeight = bmpIn.bmp_info_header.height;
@@ -100,14 +105,14 @@ void gpuProcess(const BMP& bmpIn, BMP& bmpOut)
     grayKernel.setArg(1, grayImg);
     grayKernel.setArg(2, bytesPP);
 
-    cl::Kernel lpfKernel(program, "filterImage");
+    cl::Kernel lpfKernel(program, "filterImageCached");
     lpfKernel.setArg(0, grayImg);
     lpfKernel.setArg(1, lpfImg);
     lpfKernel.setArg(2, bytesPP);
     lpfKernel.setArg(3, lpMaskSize);
     lpfKernel.setArg(4, lpMaskBuf);
 
-    cl::Kernel hpfKernel(program, "filterImage");
+    cl::Kernel hpfKernel(program, "filterImageCached");
     hpfKernel.setArg(0, lpfImg);
     hpfKernel.setArg(1, hpfImg);
     hpfKernel.setArg(2, bytesPP);
@@ -116,8 +121,8 @@ void gpuProcess(const BMP& bmpIn, BMP& bmpOut)
 
     cl::CommandQueue queue(context, device);
     queue.enqueueNDRangeKernel(grayKernel, cl::NullRange, cl::NDRange(imgWidth, imgHeight));
-    queue.enqueueNDRangeKernel(lpfKernel, cl::NullRange, cl::NDRange(imgWidth, imgHeight));
-    queue.enqueueNDRangeKernel(hpfKernel, cl::NullRange, cl::NDRange(imgWidth, imgHeight));
+    queue.enqueueNDRangeKernel(lpfKernel, cl::NullRange, cl::NDRange(imgWidth, imgHeight), cl::NDRange(SubSize, SubSize));
+    queue.enqueueNDRangeKernel(hpfKernel, cl::NullRange, cl::NDRange(imgWidth, imgHeight), cl::NDRange(SubSize, SubSize));
     queue.enqueueReadBuffer(hpfImg, CL_TRUE, 0, bmpOut.data.size() * sizeof(bmpOut.data[0]), &bmpOut.data[0]);
 }
 
@@ -129,7 +134,7 @@ int main()
     // Initialize OpenCL device.
     initializeDevice();
 
-    gpuProcess(bmp, filteredBmp);
+    FilterImageGPU(bmp, filteredBmp);
     filteredBmp.write("../../../Shapes_filt.bmp");
 
 	std::cout << "Hello OpenCL." << std::endl;
