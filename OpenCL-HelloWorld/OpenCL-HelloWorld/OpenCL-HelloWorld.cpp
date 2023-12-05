@@ -88,7 +88,7 @@ int main() {
 	 * */
 
 	cl::CommandQueue queue(context, device);
-	queue.enqueueTask(kernel);
+	queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(1));
 	queue.enqueueReadBuffer(memBuf, CL_TRUE, 0, sizeof(buf), buf);
 
 	/**

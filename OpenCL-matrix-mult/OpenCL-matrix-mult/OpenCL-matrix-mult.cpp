@@ -245,18 +245,17 @@ void parMultiplyMatrices(int* a, int* b, int* c,
 	kernel.setArg(0, aBuf);
 	kernel.setArg(1, bBuf);
 	kernel.setArg(2, cBuf);
-	kernel.setArg(3, sizeof(unsigned int), &M);
-	kernel.setArg(4, sizeof(unsigned int), &N);
-	kernel.setArg(5, sizeof(unsigned int), &K);
+	kernel.setArg(3, &M);
+	kernel.setArg(4, &N);
+	kernel.setArg(5, &K);
 
 	/**
 	 * Execute the kernel function and collect its result.
 	 * */
 
-	cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
+	cl::CommandQueue queue(context, device);
 	queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(N, M));
 	queue.enqueueReadBuffer(cBuf, CL_TRUE, 0, M * N * sizeof(int), c);
-	queue.finish();
 }
 
 /**

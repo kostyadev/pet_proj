@@ -327,9 +327,9 @@ void parMultiplyMatricesNaive(int* a, int* b, int* c,
 	kernel.setArg(0, aBuf);
 	kernel.setArg(1, bBuf);
 	kernel.setArg(2, cBuf);
-	kernel.setArg(3, sizeof(unsigned int), &M);
-	kernel.setArg(4, sizeof(unsigned int), &N);
-	kernel.setArg(5, sizeof(unsigned int), &K);
+	kernel.setArg(3, &M);
+	kernel.setArg(4, &N);
+	kernel.setArg(5, &K);
 
 	// Execute the kernel function and collect its result.
 	cl::CommandQueue queue(context, device);
@@ -354,9 +354,9 @@ void parMultiplyMatricesSubmatrix(int* a, int* b, int* c,
 	kernel.setArg(0, aBuf);
 	kernel.setArg(1, bBuf);
 	kernel.setArg(2, cBuf);
-	kernel.setArg(3, sizeof(unsigned int), &M);
-	kernel.setArg(4, sizeof(unsigned int), &N);
-	kernel.setArg(5, sizeof(unsigned int), &K);
+	kernel.setArg(3, &M);
+	kernel.setArg(4, &N);
+	kernel.setArg(5, &K);
 
 	// Execute the kernel function and collect its result.
 	cl::CommandQueue queue(context, device);
@@ -381,9 +381,9 @@ void parMultiplyMatricesSubmatrixWpt(int* a, int* b, int* c,
 	kernel.setArg(0, aBuf);
 	kernel.setArg(1, bBuf);
 	kernel.setArg(2, cBuf);
-	kernel.setArg(3, sizeof(unsigned int), &M);
-	kernel.setArg(4, sizeof(unsigned int), &N);
-	kernel.setArg(5, sizeof(unsigned int), &K);
+	kernel.setArg(3, &M);
+	kernel.setArg(4, &N);
+	kernel.setArg(5, &K);
 
 	// Execute the kernel function and collect its result.
 	cl::CommandQueue queue(context, device);
