@@ -71,16 +71,18 @@ void initializeDevice()
 struct Ball 
 {
 public:
+    int id;
     float r;
     Point2f pos;
-    Point2f f = { 0.f, 0.01f };
+    Point2f f = { 0.f, 0.05f };
 
-    Ball(float _x = 0.f, float _y = 0.f, float _r = 0.f, float angle = 0.f) 
+    Ball(float _x = 0.f, float _y = 0.f, float _r = 0.f, float angle = 0.f, float _id = 0) 
     {
         pos.x = _x;
         pos.y = _y;
         r = _r;
-        f = Mat2x2f().rot(k_PI * 2.f * (angle / 12.f)) * f;
+        f = Mat2x2f().rot(angle) * f;
+        id = _id;
     }
 
     void update(double frameTimeMs) 
@@ -93,25 +95,66 @@ public:
         mmk.drawCircle(pos.x, pos.y, r, Colmake.beige);
     }
 
+    void pulseColl(const Ball& b2)
+    {
+        // direction to other ball
+        Point2f toB2 = b2.pos - pos;
+        Point2f toB2Unit = toB2.unitVector();
+        // calculate dot product
+        float dotProdB = f.dotProduct(toB2Unit);
+        // calculate speed v for both balls
+        // that is projection to hit axis
+        float v1 = dotProdB;
+        float dotProdB2 = b2.f.dotProduct(toB2Unit);
+        float v2 = dotProdB2;
+        // if move projection to hit axis 
+        // for both balls are directed to move away 
+        // one from other then do nothing
+        if (v1 <= 0 && v2 >= 0)
+        {
+            return;
+        }
+        // mass is equal to square of 2d ball
+        float m1 = r * r;
+        float m2 = b2.r * b2.r;
+        // speed of this ball after collision 
+        float v1new = (2 * m2 * v2 + v1 * (m1 - m2)) / (m1 + m2);
+        // "to" move component
+        Point2f tmpTo = toB2Unit * v1new;
+        // "tangent" move component
+        Point2f tanUnit = Mat2x2f().rot(k_PI / 2) * toB2Unit;
+        float dotProdTan1 = f.dotProduct(tanUnit);
+        Point2f tmpTan = tanUnit * dotProdTan1;
+        // new move vector
+        Point2f newF = tmpTo + tmpTan;
+        f = newF;
+    }
+
+    void opticColl(const Ball& b)
+    {
+        // direction to other ball
+        Point2f toB = b.pos - pos;
+        // calculate dot product
+        float dotProd = f.dotProduct(toB);
+        auto unitV = toB.unitVector();
+        // if dot product is negative then force directed away from B ball
+        // and we do nothing
+        if (dotProd > 0)
+        {
+            // angle between normal and force (moving) vectors
+            float angle = f.angleTo(toB);
+            // the angle of incidence is equal to the angle of reflection
+            f = Mat2x2f().rot(angle * 2) * f;
+            f = f * (-1.f);
+        }
+    }
+
     void checkCollision(const Ball& b) 
     {
         float dist = pos.distanceTo(b.pos);
         if (dist < r + b.r) 
         {
-            // direction to other ball
-            Point2f toB = b.pos - pos;
-            // calculate dot product
-            float dotProd = f.dotProduct(toB);
-            // if dot product is negative then force directed away from B ball
-            // and we do nothing
-            if (dotProd > 0) 
-            {
-                // angle between normal and force (moving) vectors
-                float angle = f.angleTo(toB);
-                // the angle of incidence is equal to the angle of reflection
-                f = Mat2x2f().rot(angle * 2) * f;
-                f = f * (-1.f);
-            }
+            pulseColl(b);
         }
     }
 
@@ -123,13 +166,21 @@ public:
 
     void checkBorders() 
     {
-        if (pos.x <= 0 || pos.x >= mmk.getScreenW()) 
+        if ((pos.x - r) <= 0 && f.x < 0)
         {
-            f.x *= -1;
+            f.x = abs(f.x);
         }
-        if (pos.y <= 0 || pos.y >= mmk.getScreenH()) 
+        if ((pos.x + r) >= mmk.getScreenW() && f.x > 0)
         {
-            f.y *= -1;
+            f.x = -abs(f.x);
+        }
+        if ((pos.y - r) <= 0 && f.y < 0) 
+        {
+            f.y = abs(f.y);
+        }
+        if ((pos.y + r) >= mmk.getScreenH() && f.y > 0)
+        {
+            f.y = -abs(f.y);
         }
     }
 
@@ -174,12 +225,29 @@ void colladeAndUpdateGPU(Ball* b, Ball* tmpB, const int numOfBall, const double 
 
 int main()
 {
-    const int numOfBall = 20000;
+    const int numOfBall = 50;
     vector<Ball> b1;
     b1.reserve(numOfBall);
+    int sW = mmk.getScreenW();
+    int sH = mmk.getScreenH();
+    float r = 20;
+    float d = 2 * r;
+    int col = 0;
+    int row = 0;
     for (int i = 0; i < numOfBall; i++)
     {
-        b1.push_back(Ball(random(0, mmk.getScreenW()), random(0, mmk.getScreenH()), 1, random_f(0.f, k_PI * 2.f)));
+        int x = col * 1.5 * d + 0.75 * d;
+        int y = row * 1.5 * d + 0.75 * d;
+        b1.push_back(Ball(x, y, r, random_f(0.f, k_PI * 2.f), i));
+        if ((x + 1.5 * d) > sW)
+        {
+            col = 0;
+            row++;
+        }
+        else
+        {
+            col++;
+        }
     }
 
     // Initialize OpenCL device.
@@ -208,7 +276,7 @@ int main()
         frameTimeMs = std::chrono::duration<double, std::milli>(curTime - oldTime).count();
 
         frameCnt++;
-        //mmk.delay(2);
+        //mmk.delay(10);
     });
 
     auto t_end = std::chrono::high_resolution_clock::now();

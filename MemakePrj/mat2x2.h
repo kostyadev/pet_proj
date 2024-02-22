@@ -59,6 +59,12 @@ struct Point2f
 	{
 		return asinf( crossProduct(v) / (lenght() * v.lenght()) );
 	}
+
+	Point2f unitVector() const
+	{
+		float len = lenght();
+		return {x / len, y / len};
+	}
 };
 
 struct Mat2x2f
