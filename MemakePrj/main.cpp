@@ -67,11 +67,31 @@ void initializeDevice()
     }
 }
 
+struct BorderLine
+{
+public:
+    Point2f p1, p2;
+
+    void draw() const
+    {
+        mmk.drawLine(p1.x, p1.y, p2.x, p2.y, Colmake.white);
+    }
+
+    Point2f getXYMin() const
+    {
+        return { p1.x < p2.x ? p1.x : p2.x, p1.y < p2.y ? p1.y : p2.y };
+    }
+
+    Point2f getXYMax() const
+    {
+        return { p1.x > p2.x ? p1.x : p2.x, p1.y > p2.y ? p1.y : p2.y };
+    }
+};
 
 struct Ball 
 {
 public:
-    int id;
+    int id; // needs for debug purposes
     float r;
     Point2f pos;
     Point2f f = { 0.f, 0.05f };
@@ -136,7 +156,6 @@ public:
         Point2f toB = b.pos - pos;
         // calculate dot product
         float dotProd = f.dotProduct(toB);
-        auto unitV = toB.unitVector();
         // if dot product is negative then force directed away from B ball
         // and we do nothing
         if (dotProd > 0)
@@ -155,6 +174,65 @@ public:
         if (dist < r + b.r) 
         {
             pulseColl(b);
+        }
+    }
+
+    void opticCollPoint(const Point2f contactPoint)
+    {
+        // direction to other contact point
+        Point2f toContPoint = contactPoint - pos;
+        // calculate dot product
+        float dotProd = f.dotProduct(toContPoint);
+        // if dot product is negative then force directed away 
+        // from contact point and we do nothing
+        if (dotProd > 0)
+        {
+            // angle between normal and force (moving) vectors
+            float angle = f.angleTo(toContPoint);
+            // the angle of incidence is equal to the angle of reflection
+            f = Mat2x2f().rot(angle * 2) * f;
+            f = f * (-1.f);
+        }
+    }
+
+    void checkCollision(const BorderLine& bl)
+    {
+        // rectangle around line
+        Point2f xyMin = bl.getXYMin();
+        xyMin = {xyMin.x - r, xyMin.y - r};
+        Point2f xyMax = bl.getXYMax();
+        xyMax = { xyMax.x + r, xyMax.y + r };
+        if (pos.x >= xyMin.x && pos.y >= xyMin.y && pos.x <= xyMax.x && pos.y <= xyMax.y)
+        {
+            Point2f a = pos;
+            // sides of triangle
+            float p1a = bl.p1.distanceTo(a);
+            float p2a = bl.p2.distanceTo(a);
+            float p1p2 = bl.p1.distanceTo(bl.p2);
+            // angles
+            float ang1 = acos((p1a * p1a + p1p2 * p1p2 - p2a * p2a) / (2 * p1a * p1p2));
+            float ang2 = acos((p2a * p2a + p1p2 * p1p2 - p1a * p1a) / (2 * p2a * p1p2));
+            // if both angles are sharp then calculate h (distanse from a to line)
+            if (ang1 <= k_PI / 2 && ang2 <= k_PI / 2)
+            {
+                float h = sin(ang1) * p1a;
+                if (h <= r)
+                {
+                    // calculate contact point
+                    float cath1 = cos(ang1) * p1a;
+                    Point2f v = (bl.p2 - bl.p1).unitVector() * cath1;
+                    Point2f contactPoint = bl.p1 + v;
+                    opticCollPoint(contactPoint);
+                }
+            }
+            else if (p1a <= r) // first line end
+            {
+                opticCollPoint(bl.p1);
+            }
+            else if (p2a <= r) // second line end
+            {
+                opticCollPoint(bl.p2);
+            }
         }
     }
 
@@ -186,37 +264,46 @@ public:
 
 };
 
-void colladeAndUpdateCPU(Ball* b, Ball* tmpB, const int numOfBall, const double frameTimeMs)
+void colladeAndUpdateCPU(Ball* b, Ball* tmpB, const int numOfBall, BorderLine* bordLine, const int bordLineCnt, const double frameTimeMs)
 {
     for (int i = 0; i < numOfBall; i++)
     {
-        Ball tmpBall = b[i];
+        Ball ball = b[i];
         for (int j = 0; j < numOfBall; j++)
         {
             // check collision between one ball to others, but don't check collision to itself
             if (j != i)
             {
-                tmpBall.checkCollision(b[j]);
+                ball.checkCollision(b[j]);
             }
         }
-        tmpBall.checkBorders();
-        tmpBall.update(frameTimeMs);  // update/move every ball
-        tmpB[i] = tmpBall;
+
+        for (int j = 0; j < bordLineCnt; ++j)
+        {
+            ball.checkCollision(bordLine[j]);
+        }
+
+        ball.checkBorders();
+        ball.update(frameTimeMs);  // update/move every ball
+        tmpB[i] = ball;
     }
 }
 
-void colladeAndUpdateGPU(Ball* b, Ball* tmpB, const int numOfBall, const double frameTimeMs)
+void colladeAndUpdateGPU(Ball* b, Ball* tmpB, const int numOfBall, BorderLine* bl, int blCnt, const double frameTimeMs)
 {
     cl::Buffer inB(context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, numOfBall * sizeof(Ball), (void*)b);
     cl::Buffer outB(context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, numOfBall * sizeof(Ball), (void*)tmpB);
+    cl::Buffer inBl(context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, blCnt * sizeof(BorderLine), (void*)bl);
 
     cl::Kernel kern(program, "collideAndUpdate");
     kern.setArg(0, inB);
     kern.setArg(1, outB);
     kern.setArg(2, numOfBall);
-    kern.setArg(3, mmk.getScreenW());
-    kern.setArg(4, mmk.getScreenH());
-    kern.setArg(5, frameTimeMs);
+    kern.setArg(3, inBl);
+    kern.setArg(4, blCnt);
+    kern.setArg(5, mmk.getScreenW());
+    kern.setArg(6, mmk.getScreenH());
+    kern.setArg(7, frameTimeMs);
 
     cl::CommandQueue queue(context, device);
     queue.enqueueNDRangeKernel(kern, cl::NullRange, cl::NDRange(numOfBall, 1));
@@ -225,12 +312,12 @@ void colladeAndUpdateGPU(Ball* b, Ball* tmpB, const int numOfBall, const double 
 
 int main()
 {
-    const int numOfBall = 50;
+    const int numOfBall = 4000;
     vector<Ball> b1;
     b1.reserve(numOfBall);
     int sW = mmk.getScreenW();
     int sH = mmk.getScreenH();
-    float r = 20;
+    float r = 3;
     float d = 2 * r;
     int col = 0;
     int row = 0;
@@ -250,8 +337,35 @@ int main()
         }
     }
 
+    std::vector<BorderLine> lines;
+    lines.push_back({ {0, 400}, {300, 500} });
+    lines.push_back({ {300, 500}, {400, 600} });
+    lines.push_back({ {400, 600}, {450, 700} });
+    lines.push_back({ {1023, 400}, {723, 500} });
+    lines.push_back({ {723, 500}, {623, 600} });
+    lines.push_back({ {623, 600}, {573, 700} });
+
     // Initialize OpenCL device.
     initializeDevice();
+
+    {
+        Point2f p1 = { 1, 0 };
+        auto crossProd1 = p1.crossProduct({ 0, 1 });
+        auto crossProd2 = p1.crossProduct({ -1, 0 });
+        auto crossProd3 = p1.crossProduct({ 0, -1 });
+    }
+
+    {
+        Point2f p1 = { 0, 4 };
+        Point2f p2 = { 4, 4 };
+        Point2f a = { 0, 0 };
+        float p1a = p1.distanceTo(a);
+        float p2a = p2.distanceTo(a);
+        float p1p2 = p1.distanceTo(p2);
+        float ang1 = acos((p1a * p1a + p1p2 * p1p2 - p2a * p2a) / (2 * p1a * p1p2));
+        float ang2 = acos((p2a * p2a + p1p2 * p1p2 - p1a * p1a) / (2 * p2a * p1p2));
+        float h = sin(ang2) * p2a;
+    }
 
     long long frameCnt = 0;
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -260,13 +374,19 @@ int main()
     vector<Ball> b2(numOfBall);
     Ball* b = &b1[0];
     Ball* tmpB = &b2[0];
+    BorderLine* bLine = &lines[0];
     mmk.update( [&]() 
     {
-        colladeAndUpdateGPU(b, tmpB, numOfBall, frameTimeMs);
+        colladeAndUpdateGPU(b, tmpB, numOfBall, bLine, lines.size(), frameTimeMs);
 
         for (int i = 0; i < numOfBall; ++i)
         {
             tmpB[i].draw();
+        }
+
+        for (int i = 0; i < lines.size(); ++i)
+        {
+            bLine[i].draw();
         }
 
         swap(b, tmpB);
@@ -276,7 +396,7 @@ int main()
         frameTimeMs = std::chrono::duration<double, std::milli>(curTime - oldTime).count();
 
         frameCnt++;
-        //mmk.delay(10);
+        //mmk.delay(100);
     });
 
     auto t_end = std::chrono::high_resolution_clock::now();
