@@ -348,25 +348,6 @@ int main()
     // Initialize OpenCL device.
     initializeDevice();
 
-    {
-        Point2f p1 = { 1, 0 };
-        auto crossProd1 = p1.crossProduct({ 0, 1 });
-        auto crossProd2 = p1.crossProduct({ -1, 0 });
-        auto crossProd3 = p1.crossProduct({ 0, -1 });
-    }
-
-    {
-        Point2f p1 = { 0, 4 };
-        Point2f p2 = { 4, 4 };
-        Point2f a = { 0, 0 };
-        float p1a = p1.distanceTo(a);
-        float p2a = p2.distanceTo(a);
-        float p1p2 = p1.distanceTo(p2);
-        float ang1 = acos((p1a * p1a + p1p2 * p1p2 - p2a * p2a) / (2 * p1a * p1p2));
-        float ang2 = acos((p2a * p2a + p1p2 * p1p2 - p1a * p1a) / (2 * p2a * p1p2));
-        float h = sin(ang2) * p2a;
-    }
-
     long long frameCnt = 0;
     auto t_start = std::chrono::high_resolution_clock::now();
     auto curTime = t_start;
