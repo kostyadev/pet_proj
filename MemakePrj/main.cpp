@@ -1,5 +1,13 @@
 ﻿#include "Memake/Memake.h"
+#ifdef GPU_VENDOR_IS_AMD
+#define CL_HPP_ENABLE_PROGRAM_CONSTRUCTION_FROM_ARRAY_COMPATIBILITY
+#include <CL/cl2.hpp>
+#endif // GPU_VENDOR_IS_AMD
+
+#ifdef GPU_VENDOR_IS_NVIDIA
 #include <CL/cl.hpp>
+#endif // GPU_VENDOR_IS_NVIDIA
+
 #include <math.h>
 #include <chrono>
 #include <vector>
